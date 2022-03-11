@@ -1,7 +1,6 @@
 package com.lccao.androidemulatordetector
 
 import kotlinx.coroutines.*
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @DelicateCoroutinesApi
@@ -11,11 +10,12 @@ object DataCollector {
 
     suspend fun fetchCollection() = coroutineScope {
         dataCollectorsList.forEach {
-                val begin = System.currentTimeMillis()
-                val collectedData = it.invoke()
-                val end = System.currentTimeMillis()
-                collectedData.collectionTimestamp = end - begin
-                collectedDataList.get().add(collectedData)
+            val begin = System.currentTimeMillis()
+            val collectedData = it.invoke()
+            val end = System.currentTimeMillis()
+            collectedData.collectionDurationTimestamp = end - begin
+            collectedDataList.get().add(collectedData)
+            TsvFileLogger.log(collectedData)
         }
     }
 
