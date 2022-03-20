@@ -2,13 +2,11 @@ package com.lccao.androidemulatordetector
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.Toast
-import androidx.core.app.ShareCompat
 import androidx.core.app.ShareCompat.IntentBuilder
 import androidx.core.content.FileProvider
 import com.google.android.material.progressindicator.CircularProgressIndicator
@@ -39,13 +37,6 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
     }
 
     fun share(view: View) {
-//        val sendIntent = Intent().apply {
-//            action = Intent.ACTION_SEND
-//            type = "text/plain"
-//            putExtra(Intent.EXTRA_SUBJECT, "Share file")
-//            putExtra(Intent.EXTRA_TEXT, "Chose application")
-//        }
-//        startActivity(sendIntent)
         this.shareLog()
     }
 
@@ -67,6 +58,8 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
                                 .intent
                                 .setAction(Intent.ACTION_SEND)
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                .putExtra(Intent.EXTRA_EMAIL, "lccao@cin.ufpe.br")
+                                .putExtra(Intent.EXTRA_SUBJECT, "Android Emulator Logs")
                             startActivity(
                                 Intent.createChooser(
                                     intent,
