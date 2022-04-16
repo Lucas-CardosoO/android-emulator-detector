@@ -1,5 +1,6 @@
 package com.lccao.androidemulatordetector
 
+import android.util.Log
 import kotlinx.coroutines.*
 import java.util.concurrent.atomic.AtomicReference
 
@@ -9,6 +10,10 @@ object DataCollector {
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> = AtomicReference(mutableListOf())
 
     suspend fun fetchCollection() = coroutineScope {
+        val wrapper = JNIWrapper()
+        val abi = wrapper.getABI()
+        val isemu = wrapper.isemu()
+        Log.d("TESTE","TESTE: ${abi}, ${isemu}")
         dataCollectorsList.forEach {
             val begin = System.currentTimeMillis()
             val collectedData = it.invoke()
@@ -25,5 +30,18 @@ object DataCollector {
 
     private fun mockFun2(): CollectedDataModel {
         return CollectedDataModel("c", "d", 0)
+    }
+
+
+}
+
+class JNIWrapper {
+    external fun isemu(): Int
+    external fun getABI(): String
+
+    companion object {
+        init {
+            System.loadLibrary("isemu")
+        }
     }
 }
