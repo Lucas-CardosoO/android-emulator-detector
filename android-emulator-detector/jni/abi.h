@@ -25,6 +25,7 @@
   #endif
 #elif defined(__i386__)
 #define ABI "x86"
+#define ABI_x86 1
 #elif defined(__x86_64__)
 #define ABI "x86_64"
 #elif defined(__mips64)  /* mips64el-* toolchain defines __mips__ too */

@@ -23,6 +23,8 @@ object DataCollector {
         val wrapper = JNIWrapper()
         val abi = wrapper.getABI()
         val isemu = wrapper.isemu()
+//        val abi = "eita"
+//        val isemu = true
 
         return CollectedDataModel("isEmu vectorization detection. isEmu may be -1 if running on unsupported hardware", "ABI:${abi}, isEmu:${isemu}")
     }

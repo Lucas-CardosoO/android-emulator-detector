@@ -124,7 +124,7 @@ static void patch_faulting_instruction() {
     flush_icache(dest, len);
 }
 
-#if ABI_aremeabi_v7a || ABI_arm64_v8a
+#if ABI_aremeabi_v7a || ABI_arm64_v8a || ABI_x86
 
 static int addr_in_scratchpad(void* ptr) {
     return (&context.scratchpad[0] <= (unsigned char*)ptr)
@@ -244,6 +244,35 @@ static int check_emu_arm64_v8a() {
 }
 #endif // ABI_arm64_v8a
 
+#if ABI_x86
+
+#include "stubs_x86.h"
+
+static int check_emu_x86() {
+
+    memset(&spec, 0, sizeof(spec));
+    memset(&context, 0, sizeof(context));
+    spec.nop_beg = &nop_x86_beg;
+    spec.nop_end = &nop_x86_end;
+    spec.fault_beg = &fault_x86_beg;
+    spec.fault_hit = &fault_x86_hit;
+    spec.fault_end = &fault_x86_end;
+
+    return execute_check_emu();
+    // trigger unaligned vectorization
+//    asm ("mov %rsp , %rax \n"
+//         "inc %rax \n"
+//         "movntps %xmm0,(% rax )") ;
+//    return -1;
+
+//    asm ("mov %esp , %eax \n"
+//         "inc %eax \n"
+//         "movntps %xmm0,(% eax )") ;
+//    return -1;
+}
+
+#endif ABI_x86
+
 // Return values:
 //  -2 -> internal error
 //  -1 -> unsupported architecture
@@ -256,6 +285,8 @@ Java_com_ac_kaist_isemu_Main_isemu(JNIEnv* env, jobject thiz)
     return check_emu_armeabi_v7a();
 #elif ABI_arm64_v8a
     return check_emu_arm64_v8a();
+#elif ABI_x86
+    return check_emu_x86();
 #else
     return -1;
 #endif
