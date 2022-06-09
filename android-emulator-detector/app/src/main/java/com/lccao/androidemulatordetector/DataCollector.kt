@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 @DelicateCoroutinesApi
 object DataCollector {
-    private val dataCollectorsList: List<() -> CollectedDataModel> = listOf(this::mockFun1, this::mockFun2)
+    private val dataCollectorsList: List<() -> CollectedDataModel> = listOf(this::isEmu)
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> = AtomicReference(mutableListOf())
 
     suspend fun fetchCollection() = coroutineScope {
@@ -19,11 +19,22 @@ object DataCollector {
         }
     }
 
-    private fun mockFun1(): CollectedDataModel {
-        return CollectedDataModel("a", "b", 0)
-    }
+    private fun isEmu(): CollectedDataModel {
+        val wrapper = JNIWrapper()
+        val abi = wrapper.getABI()
+        val isemu = wrapper.isemu()
 
-    private fun mockFun2(): CollectedDataModel {
-        return CollectedDataModel("c", "d", 0)
+        return CollectedDataModel("isEmu vectorization detection. isEmu may be -1 if running on unsupported hardware", "ABI:${abi}, isEmu:${isemu}")
+    }
+}
+
+class JNIWrapper {
+    external fun isemu(): Int
+    external fun getABI(): String
+
+    companion object {
+        init {
+            System.loadLibrary("isemu")
+        }
     }
 }
