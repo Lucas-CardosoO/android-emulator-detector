@@ -9,39 +9,48 @@ import java.util.concurrent.atomic.AtomicReference
 
 @DelicateCoroutinesApi
 object DataCollector {
-    private val EMULATOR_FILES = arrayOf(
+    private val EMULATOR_FILES = mapOf(
         // Genymotion files
-        "/dev/socket/genyd",
-        "/dev/socket/baseband_genyd",
+        "genymotion" to listOf(
+            "/dev/socket/genyd",
+            "/dev/socket/baseband_genyd",
+        ),
 
         // Nox files
-        "fstab.nox",
-        "init.nox.rc",
-        "ueventd.nox.rc",
-
+        "nox" to listOf(
+            "fstab.nox",
+            "init.nox.rc",
+            "ueventd.nox.rc",
+        ),
         // Andy files
-        "fstab.andy",
-        "ueventd.andy.rc",
-
+        "andy" to listOf(
+            "fstab.andy",
+            "ueventd.andy.rc",
+        ),
         // x86 Files
-        "ueventd.android_x86.rc",
-        "x86.prop",
-        "ueventd.ttVM_x86.rc",
-        "init.ttVM_x86.rc",
-        "fstab.ttVM_x86",
-        "fstab.vbox86",
-        "init.vbox86.rc",
-        "ueventd.vbox86.rc",
-
+        "x86" to listOf(
+            "ueventd.android_x86.rc",
+            "x86.prop",
+            "ueventd.ttVM_x86.rc",
+            "init.ttVM_x86.rc",
+            "fstab.ttVM_x86",
+            "fstab.vbox86",
+            "init.vbox86.rc",
+            "ueventd.vbox86.rc",
+        ),
         // Pipes
-        "/dev/socket/qemud",
-        "/dev/qemu_pipe",
+        "pipes" to listOf(
+            "/dev/socket/qemud",
+            "/dev/qemu_pipe",
+        ),
     )
 
     private val QEMU_DRIVERS = arrayOf("goldfish")
 
-    private val dataCollectorsList: List<() -> CollectedDataModel> = listOf(this::isEmu, this::buildCharacteristics)
-    val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> = AtomicReference(mutableListOf())
+    private val dataCollectorsList: List<() -> CollectedDataModel> =
+        listOf(this::isEmu, this::buildCharacteristics, this::emulatorFiles)
+    val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
+        AtomicReference(mutableListOf())
 
     suspend fun fetchCollection() = coroutineScope {
         dataCollectorsList.forEach {
@@ -60,7 +69,10 @@ object DataCollector {
         val isemu = wrapper.isemu()
 
         val collectedData = mapOf("ABI" to abi, "isEmu" to "$isemu")
-        return CollectedDataModel("isEmu vectorization detection. isEmu may be -1 if running on unsupported hardware", collectedData)
+        return CollectedDataModel(
+            "isEmu vectorization detection. isEmu may be -1 if running on unsupported hardware",
+            collectedData
+        )
     }
 
     @SuppressLint("HardwareIds")
@@ -82,18 +94,26 @@ object DataCollector {
     }
 
     private fun emulatorFiles(): CollectedDataModel {
-
+        val collectedData = HashMap<String, String>()
+        EMULATOR_FILES.forEach {
+            val files = checkFiles(it.value)
+            if (files.isNotEmpty()) {
+                collectedData[it.key] = files.toString()
+            }
+        }
+        return CollectedDataModel("Emulator files", collectedData)
     }
 
 
-    private fun checkFiles(files: Array<String>, type: String): Boolean {
+    private fun checkFiles(files: List<String>): List<String> {
+        val detectedFiles = mutableListOf<String>()
         for (file in files) {
             val emulatorFile = File(file)
             if (emulatorFile.exists()) {
-                return true
+                detectedFiles.add(file)
             }
         }
-        return false
+        return detectedFiles
     }
 }
 
