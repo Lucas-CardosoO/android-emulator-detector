@@ -261,9 +261,9 @@ Java_com_ac_kaist_isemu_Main_isemu(JNIEnv* env, jobject thiz)
 #endif
 }
 jint
-Java_com_lccao_androidemulatordetector_JNIWrapper_isemu(JNIEnv
+Java_com_lccao_androidemulatordetector_JNIWrapper_isEmulator(JNIEnv
 * env,
-jobject thiz
+                                                             jobject thiz
 ) {
 return Java_com_ac_kaist_isemu_Main_isemu(env, thiz);
 }

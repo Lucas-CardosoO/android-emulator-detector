@@ -9,7 +9,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
 import java.lang.reflect.Method
+import java.util.*
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.collections.HashMap
 
 typealias PropertyName = String
 typealias PropertyValue = String
@@ -73,10 +75,10 @@ object DataCollector {
         Property("ro.serialno", null),
     )
 
-    private val MIN_PROPERTIES_THRESHOLD = 5
+    private const val MIN_PROPERTIES_THRESHOLD = 5
 
     private val dataCollectorsList: List<() -> CollectedDataModel> =
-        listOf(this::isEmu, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers)
+        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers)
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
 
@@ -91,15 +93,16 @@ object DataCollector {
         }
     }
 
-    private fun isEmu(): CollectedDataModel {
+    private fun isEmulator(): CollectedDataModel {
         val wrapper = JNIWrapper()
         val abi = wrapper.getABI()
-        val isemu = wrapper.isemu()
+        val isEmulator = wrapper.isEmulator()
 
-        val collectedData = mapOf("ABI" to abi, "isEmu" to "$isemu")
+        val collectedData = mapOf("ABI" to abi, "isEmu" to "$isEmulator")
         return CollectedDataModel(
             "isEmu vectorization detection. isEmu may be -1 if running on unsupported hardware",
-            collectedData
+            collectedData,
+            isEmulator > 0
         )
     }
 
@@ -118,54 +121,70 @@ object DataCollector {
             "device" to Build.DEVICE,
         )
 
-        return CollectedDataModel("Build data", collectedData)
+        return CollectedDataModel("Build data", collectedData, checkBasic())
+    }
+
+    private fun checkBasic(): Boolean {
+        var result = (Build.FINGERPRINT.startsWith("generic")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.lowercase(Locale.getDefault()).contains("droid4x")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || Build.HARDWARE == "goldfish" || Build.HARDWARE == "vbox86" || Build.PRODUCT == "sdk" || Build.PRODUCT == "google_sdk" || Build.PRODUCT == "sdk_x86" || Build.PRODUCT == "vbox86p" || Build.BOARD.lowercase(
+            Locale.getDefault()
+        ).contains("nox")
+                || Build.BOOTLOADER.lowercase(Locale.getDefault()).contains("nox")
+                || Build.HARDWARE.lowercase(Locale.getDefault()).contains("nox")
+                || Build.PRODUCT.lowercase(Locale.getDefault()).contains("nox")
+                || Build.SERIAL.lowercase(Locale.getDefault()).contains("nox"))
+        if (result) return true
+        result = result or (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+        if (result) return true
+        result = result or ("google_sdk" == Build.PRODUCT)
+        return result
     }
 
     private fun emulatorFiles(): CollectedDataModel {
         val collectedData = HashMap<String, String>()
-        EMULATOR_FILES.forEach {
-            val files = checkFiles(it.value)
+        EMULATOR_FILES.forEach { emulatorEntry ->
+            val files = emulatorEntry.value.filter {
+                val emulatorFile = File(it)
+                emulatorFile.exists()
+            }
             if (files.isNotEmpty()) {
-                collectedData[it.key] = files.toString()
+                collectedData[emulatorEntry.key] = files.toString()
             }
         }
-        return CollectedDataModel("Emulator files", collectedData)
-    }
-
-
-    private fun checkFiles(files: List<String>): List<String> {
-        val detectedFiles = mutableListOf<String>()
-        for (file in files) {
-            val emulatorFile = File(file)
-            if (emulatorFile.exists()) {
-                detectedFiles.add(file)
-            }
-        }
-        return detectedFiles
+        return CollectedDataModel("Emulator files", collectedData, collectedData.isNotEmpty())
     }
 
     private fun checkQEmuDrivers(): CollectedDataModel {
         val driversFiles = arrayOf(File("/proc/tty/drivers"), File("/proc/cpuinfo"))
-        for (drivers_file in driversFiles) {
-            if (drivers_file.exists() && drivers_file.canRead()) {
-                val data = ByteArray(1024)
+        val collectedData = emptyMap<String, String>().toMutableMap()
+        var detectedFile = false
+        for (driversFile in driversFiles) {
+            if (driversFile.exists() && driversFile.canRead()) {
                 try {
-                    val inputStream: InputStream = FileInputStream(drivers_file)
+                    val data = ByteArray(1024)
+                    val inputStream: InputStream = FileInputStream(driversFile)
                     inputStream.read(data)
                     inputStream.close()
+
+                    val driverData = String(data)
+                    val detectedDrivers = QEMU_DRIVERS.filter { driverData.contains(it) }
+
+                    if (detectedDrivers.isNotEmpty()) {
+                        detectedFile = true
+                        collectedData[driversFile.name] = detectedDrivers.toString()
+                    }
                 } catch (exception: Exception) {
                     exception.printStackTrace()
-                    return CollectedDataModel("Quemu known drivers", mapOf("Collection Failed with exception" to exception.toString()))
-                }
-                val driver_data = String(data)
-                for (known_qemu_driver in QEMU_DRIVERS) {
-                    if (driver_data.contains(known_qemu_driver)) {
-                        return CollectedDataModel("Quemu known drivers", mapOf(known_qemu_driver to "true"))
-                    }
+                    collectedData["Collection of ${driversFile.name} Failed with exception"] = exception.toString()
                 }
             }
         }
-        return CollectedDataModel("Quemu known drivers", mapOf("No file was detected, files checked" to driversFiles.toString()))
+        return CollectedDataModel("Quemu known drivers", collectedData, detectedFile)
     }
 
 //    private fun checkQEmuProps(): Boolean {
@@ -192,7 +211,7 @@ object DataCollector {
     @SuppressLint("PrivateApi")
     private fun getProp(context: Context, property: String): String? {
         try {
-            val classLoader: ClassLoader = context.getClassLoader()
+            val classLoader: ClassLoader = context.classLoader
             val systemProperties = classLoader.loadClass("android.os.SystemProperties")
             val get: Method = systemProperties.getMethod("get", String::class.java)
             val params = arrayOfNulls<Any>(1)
@@ -206,7 +225,7 @@ object DataCollector {
 }
 
 class JNIWrapper {
-    external fun isemu(): Int
+    external fun isEmulator(): Int
     external fun getABI(): String
 
     companion object {
