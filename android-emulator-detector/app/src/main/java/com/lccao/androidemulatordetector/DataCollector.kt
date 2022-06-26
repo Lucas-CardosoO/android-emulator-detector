@@ -1,8 +1,12 @@
 package com.lccao.androidemulatordetector
 
+import android.Manifest.permission.READ_PHONE_STATE
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import android.telephony.TelephonyManager
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import java.io.File
@@ -11,7 +15,6 @@ import java.io.InputStream
 import java.lang.reflect.Method
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.collections.HashMap
 
 typealias PropertyName = String
 typealias PropertyValue = String
@@ -75,10 +78,26 @@ object DataCollector {
         Property("ro.serialno", null),
     )
 
+    private val DEVICE_IDS = arrayOf(
+        "000000000000000",
+        "e21833235b6eef10",
+        "012345678912345"
+    )
+
+    private val PHONE_NUMBERS = arrayOf(
+        "15555215554", "15555215556", "15555215558", "15555215560", "15555215562", "15555215564",
+        "15555215566", "15555215568", "15555215570", "15555215572", "15555215574", "15555215576",
+        "15555215578", "15555215580", "15555215582", "15555215584"
+    )
+
+    private val IMSI_IDS = arrayOf(
+        "310260000000000"
+    )
+
     private const val MIN_PROPERTIES_THRESHOLD = 5
 
     private val dataCollectorsList: List<() -> CollectedDataModel> =
-        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers)
+        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers, this::checkQEmuProps)
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
 
@@ -147,6 +166,7 @@ object DataCollector {
 
     private fun emulatorFiles(): CollectedDataModel {
         val collectedData = HashMap<String, String>()
+        val QEmuProps = checkQEmuProps()
         EMULATOR_FILES.forEach { emulatorEntry ->
             val files = emulatorEntry.value.filter {
                 val emulatorFile = File(it)
@@ -156,7 +176,7 @@ object DataCollector {
                 collectedData[emulatorEntry.key] = files.toString()
             }
         }
-        return CollectedDataModel("Emulator files", collectedData, collectedData.isNotEmpty())
+        return CollectedDataModel("Emulator files", collectedData, collectedData.isNotEmpty() && (collectedData["x86"] == null || QEmuProps.emulatorDetected))
     }
 
     private fun checkQEmuDrivers(): CollectedDataModel {
@@ -187,26 +207,27 @@ object DataCollector {
         return CollectedDataModel("Quemu known drivers", collectedData, detectedFile)
     }
 
-//    private fun checkQEmuProps(): Boolean {
-//        var found_props = 0
-//        for (property in PROPERTIES) {
-//            property.
-////            val property_value: String = getProp(AppConte, property.PropertyName)
-//            if (property.seek_value == null && property_value != null) {
-//                found_props++
-//            }
-//            if (property.seek_value != null
-//                && property_value.contains(property.seek_value)
-//            ) {
-//                found_props++
-//            }
-//        }
-//        if (found_props >= MIN_PROPERTIES_THRESHOLD) {
-//            log("Check QEmuProps is detected")
-//            return true
-//        }
-//        return false
-//    }
+    private fun checkQEmuProps(): CollectedDataModel {
+        var foundProps = 0
+        val collectedData = emptyMap<String, String>().toMutableMap()
+        for (property in PROPERTIES) {
+            val propertyValue = getProp(App.appContext, property.first)
+            property.second?.let { suspectValue ->
+                propertyValue?.let {
+                    if (it.contains(suspectValue)) {
+                        foundProps++
+                    }
+                    collectedData[property.first] = propertyValue
+                }
+            } ?: run {
+                propertyValue?.let {
+                    foundProps++
+                    collectedData[property.first] = propertyValue
+                }
+            }
+        }
+        return CollectedDataModel("QEmuProps", collectedData, collectedData.size >= MIN_PROPERTIES_THRESHOLD)
+    }
 
     @SuppressLint("PrivateApi")
     private fun getProp(context: Context, property: String): String? {
@@ -216,11 +237,95 @@ object DataCollector {
             val get: Method = systemProperties.getMethod("get", String::class.java)
             val params = arrayOfNulls<Any>(1)
             params[0] = property
-            return get.invoke(systemProperties, params) as String?
+            return get.invoke(systemProperties, params) as String
         } catch (exception: java.lang.Exception) {
-            // empty catch
         }
         return null
+    }
+
+    private fun checkTelephony(): Boolean {
+        return if ((ContextCompat.checkSelfPermission(
+                App.appContext,
+                READ_PHONE_STATE
+            )
+                    == PackageManager.PERMISSION_GRANTED) && isSupportTelePhony()
+        ) {
+            (checkPhoneNumber()
+                    || checkDeviceId()
+                    || checkImsi()
+                    || checkOperatorNameAndroid())
+        } else false
+    }
+
+    private fun checkPhoneNumber(): Boolean {
+        val telephonyManager =
+            App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        try {
+            @SuppressLint("HardwareIds", "MissingPermission") val phoneNumber =
+                telephonyManager.line1Number
+            for (number in PHONE_NUMBERS) {
+                if (number.equals(phoneNumber, ignoreCase = true)) {
+                    print(" check phone number is detected")
+                    return true
+                }
+            }
+        } catch (e: java.lang.Exception) {
+            print("No permission to detect access of Line1Number")
+        }
+        return false
+    }
+
+    private fun checkDeviceId(): Boolean {
+        val telephonyManager =
+            App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        try {
+            @SuppressLint("HardwareIds", "MissingPermission") val deviceId =
+                telephonyManager.deviceId
+            for (known_deviceId in DEVICE_IDS) {
+                if (known_deviceId.equals(deviceId, ignoreCase = true)) {
+                    print("Check device id is detected")
+                    return true
+                }
+            }
+        } catch (e: java.lang.Exception) {
+            print("No permission to detect access of DeviceId")
+        }
+        return false
+    }
+
+    private fun checkImsi(): Boolean {
+        val telephonyManager =
+            App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        try {
+            @SuppressLint("HardwareIds", "MissingPermission") val imsi =
+                telephonyManager.subscriberId
+            for (known_imsi in IMSI_IDS) {
+                if (known_imsi.equals(imsi, ignoreCase = true)) {
+                    print("Check imsi is detected")
+                    return true
+                }
+            }
+        } catch (e: java.lang.Exception) {
+            print("No permission to detect access of SubscriberId")
+        }
+        return false
+    }
+
+    private fun checkOperatorNameAndroid(): Boolean {
+        val operatorName =
+            (App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager).networkOperatorName
+        if (operatorName.equals("android", ignoreCase = true)) {
+            print("Check operator name android is detected")
+            return true
+        }
+        return false
+    }
+
+    private fun isSupportTelePhony(): Boolean {
+        val packageManager: PackageManager = App.appContext.getPackageManager()
+        val isSupport = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+        print("Supported TelePhony: $isSupport")
+        return isSupport
     }
 }
 
