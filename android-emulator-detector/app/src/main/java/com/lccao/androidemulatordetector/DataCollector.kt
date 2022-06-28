@@ -243,89 +243,35 @@ object DataCollector {
         return null
     }
 
-    private fun checkTelephony(): Boolean {
-        return if ((ContextCompat.checkSelfPermission(
-                App.appContext,
-                READ_PHONE_STATE
-            )
-                    == PackageManager.PERMISSION_GRANTED) && isSupportTelePhony()
-        ) {
-            (checkPhoneNumber()
-                    || checkDeviceId()
-                    || checkImsi()
-                    || checkOperatorNameAndroid())
-        } else false
-    }
+    @SuppressLint("HardwareIds")
+    private fun checkTelephony(): CollectedDataModel {
+        return when {
+            (ContextCompat.checkSelfPermission(App.appContext, READ_PHONE_STATE)) == PackageManager.PERMISSION_GRANTED && isSupportTelephony() -> {
+                val telephonyManager = App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                val phoneNumber = telephonyManager.line1Number
+                val deviceId = telephonyManager.deviceId // May not have permission, check
+                val imsi = telephonyManager.subscriberId
+                val operatorName = telephonyManager.networkOperatorName
 
-    private fun checkPhoneNumber(): Boolean {
-        val telephonyManager =
-            App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        try {
-            @SuppressLint("HardwareIds", "MissingPermission") val phoneNumber =
-                telephonyManager.line1Number
-            for (number in PHONE_NUMBERS) {
-                if (number.equals(phoneNumber, ignoreCase = true)) {
-                    print(" check phone number is detected")
-                    return true
-                }
+                CollectedDataModel(
+                    "Check Telephony",
+                    mapOf("Phone Number" to phoneNumber, "Device ID" to deviceId, "IMSI" to imsi, "Network Operator Name" to operatorName),
+                    PHONE_NUMBERS.contains(phoneNumber) ||
+                            DEVICE_IDS.contains(deviceId) || IMSI_IDS.contains(imsi) || operatorName.equals("android", ignoreCase = true)
+                )
             }
-        } catch (e: java.lang.Exception) {
-            print("No permission to detect access of Line1Number")
-        }
-        return false
-    }
-
-    private fun checkDeviceId(): Boolean {
-        val telephonyManager =
-            App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        try {
-            @SuppressLint("HardwareIds", "MissingPermission") val deviceId =
-                telephonyManager.deviceId
-            for (known_deviceId in DEVICE_IDS) {
-                if (known_deviceId.equals(deviceId, ignoreCase = true)) {
-                    print("Check device id is detected")
-                    return true
-                }
+            !isSupportTelephony() -> {
+                CollectedDataModel("Check Telephony", mapOf("Collection Failed" to "No Support for Telephony Permission"), false)
             }
-        } catch (e: java.lang.Exception) {
-            print("No permission to detect access of DeviceId")
-        }
-        return false
-    }
-
-    private fun checkImsi(): Boolean {
-        val telephonyManager =
-            App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        try {
-            @SuppressLint("HardwareIds", "MissingPermission") val imsi =
-                telephonyManager.subscriberId
-            for (known_imsi in IMSI_IDS) {
-                if (known_imsi.equals(imsi, ignoreCase = true)) {
-                    print("Check imsi is detected")
-                    return true
-                }
+            else -> {
+                CollectedDataModel("Check Telephony", mapOf("Collection Failed" to "No READ_PHONE_STATE Permission"), false)
             }
-        } catch (e: java.lang.Exception) {
-            print("No permission to detect access of SubscriberId")
         }
-        return false
     }
 
-    private fun checkOperatorNameAndroid(): Boolean {
-        val operatorName =
-            (App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager).networkOperatorName
-        if (operatorName.equals("android", ignoreCase = true)) {
-            print("Check operator name android is detected")
-            return true
-        }
-        return false
-    }
-
-    private fun isSupportTelePhony(): Boolean {
-        val packageManager: PackageManager = App.appContext.getPackageManager()
-        val isSupport = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
-        print("Supported TelePhony: $isSupport")
-        return isSupport
+    private fun isSupportTelephony(): Boolean {
+        val packageManager: PackageManager = App.appContext.packageManager
+        return packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
     }
 }
 
