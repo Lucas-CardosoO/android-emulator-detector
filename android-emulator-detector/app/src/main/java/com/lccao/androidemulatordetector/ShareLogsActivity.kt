@@ -28,11 +28,12 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
         TsvFileLogger.setFolderPathFromContext(applicationContext)
         TsvFileLogger.deleteLogFiles()
 
-        GlobalScope.launch {
+        GlobalScope.launch(Dispatchers.IO) {
             DataCollector.fetchCollection()
-
-            button.visibility = View.VISIBLE
-            loadingIndicator.visibility = View.GONE
+            runOnUiThread {
+                button.visibility = View.VISIBLE
+                loadingIndicator.visibility = View.GONE
+            }
         }
     }
 

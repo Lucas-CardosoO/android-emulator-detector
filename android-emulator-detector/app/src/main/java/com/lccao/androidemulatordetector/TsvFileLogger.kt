@@ -24,6 +24,7 @@ internal object TsvFileLogger {
     private const val LOG_FILE_PREFIX = "log"
     private const val DESCRIPTION_COLUMN_NAME = "descriptions"
     private const val COLLECTED_DATA_COLUMN_NAME = "collected_data"
+    private const val EMULATOR_DETECTED = "emulator_detected"
     private const val COLLECTION_DURATION_COLUMN_NAME = "collection_duration"
     private const val TSV_EXTENSION = ".tsv"
     private const val ARCHIVED_LOGS_FILE_NAME = "logs.zip"
@@ -51,6 +52,8 @@ internal object TsvFileLogger {
                     append(SEPARATOR)
                     append(collectedDataModel.collectedData)
                     append(SEPARATOR)
+                    append(collectedDataModel.emulatorDetected)
+                    append(SEPARATOR)
                     append(collectedDataModel.collectionDurationTimestamp)
                     append(NEW_LINE)
                 }
@@ -66,6 +69,8 @@ internal object TsvFileLogger {
                 append(DESCRIPTION_COLUMN_NAME)
                 append(SEPARATOR)
                 append(COLLECTED_DATA_COLUMN_NAME)
+                append(SEPARATOR)
+                append(EMULATOR_DETECTED)
                 append(SEPARATOR)
                 append(COLLECTION_DURATION_COLUMN_NAME)
                 append(NEW_LINE)
