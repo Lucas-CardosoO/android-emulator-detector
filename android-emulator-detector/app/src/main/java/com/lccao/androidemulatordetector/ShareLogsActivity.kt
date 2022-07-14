@@ -11,11 +11,11 @@ import androidx.core.app.ShareCompat.IntentBuilder
 import androidx.core.content.FileProvider
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import kotlinx.coroutines.*
-import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.Dispatchers.IO
 import java.io.File
 
 class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
-    override val coroutineContext = Main
+    override val coroutineContext = IO
     lateinit var button: Button
     lateinit var loadingIndicator: CircularProgressIndicator
 
@@ -28,7 +28,7 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
         TsvFileLogger.setFolderPathFromContext(applicationContext)
         TsvFileLogger.deleteLogFiles()
 
-        GlobalScope.launch(Dispatchers.IO) {
+        GlobalScope.launch() {
             DataCollector.fetchCollection()
             runOnUiThread {
                 button.visibility = View.VISIBLE

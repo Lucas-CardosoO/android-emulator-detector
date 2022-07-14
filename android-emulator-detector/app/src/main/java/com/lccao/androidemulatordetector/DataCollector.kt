@@ -96,7 +96,7 @@ object DataCollector {
 
     private const val MIN_PROPERTIES_THRESHOLD = 5
 
-    private val dataCollectorsList: List<() -> CollectedDataModel> = //listOf()
+    private val dataCollectorsList: List<() -> CollectedDataModel> =
         listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony)
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
