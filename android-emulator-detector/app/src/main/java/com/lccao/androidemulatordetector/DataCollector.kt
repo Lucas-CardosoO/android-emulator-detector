@@ -1,11 +1,13 @@
 package com.lccao.androidemulatordetector
 
+import android.Manifest.permission.INTERNET
 import android.Manifest.permission.READ_PHONE_STATE
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.TelephonyManager
+import android.text.TextUtils
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.coroutineScope
@@ -94,6 +96,8 @@ object DataCollector {
         "310260000000000"
     )
 
+    private const val IP = "10.0.2.15"
+
     private const val MIN_PROPERTIES_THRESHOLD = 5
 
     private val dataCollectorsList: List<() -> CollectedDataModel> =
@@ -109,6 +113,7 @@ object DataCollector {
             collectedData.collectionDurationTimestamp = end - begin
             collectedDataList.get().add(collectedData)
             TsvFileLogger.log(collectedData)
+            checkIp()
         }
     }
 
@@ -272,6 +277,38 @@ object DataCollector {
     private fun isSupportTelephony(): Boolean {
         val packageManager: PackageManager = App.appContext.packageManager
         return packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+    }
+
+    private fun checkIp(): CollectedDataModel {
+        if (ContextCompat.checkSelfPermission(App.appContext, INTERNET)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            val stringBuilder = StringBuilder()
+            try {
+                val builder = ProcessBuilder("/system/bin/netcfg")
+                builder.directory(File("/system/bin/"))
+                builder.redirectErrorStream(true)
+                val process = builder.start()
+                val inputStream = process.inputStream
+                val re = ByteArray(1024)
+                while (inputStream.read(re) != -1) {
+                    stringBuilder.append(String(re))
+                }
+                inputStream.close()
+            } catch (ex: java.lang.Exception) {
+                return CollectedDataModel("Check IP", mapOf("Exception" to ex.toString()), false)
+            }
+            val netData = stringBuilder.toString()
+
+            var detectedArray: Array<String> = emptyArray()
+            if (!TextUtils.isEmpty(netData)) {
+                detectedArray = netData.split("\n").toTypedArray()
+                detectedArray.filter { (it.contains("wlan0") || it.contains("tunl0") || it.contains("eth0")) && it.contains(IP) }
+            }
+            return CollectedDataModel("Check IP", mapOf("Net Data" to netData, "Detected Array" to detectedArray.toString()), detectedArray.isNotEmpty())
+        } else {
+            return CollectedDataModel("Check IP", mapOf("Missing permissions" to INTERNET), false)
+        }
     }
 }
 
