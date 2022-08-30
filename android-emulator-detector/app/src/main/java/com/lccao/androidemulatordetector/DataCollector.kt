@@ -101,7 +101,7 @@ object DataCollector {
     private const val MIN_PROPERTIES_THRESHOLD = 5
 
     private val dataCollectorsList: List<() -> CollectedDataModel> =
-        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony)
+        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony, this::checkIp)
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
 
@@ -113,7 +113,6 @@ object DataCollector {
             collectedData.collectionDurationTimestamp = end - begin
             collectedDataList.get().add(collectedData)
             TsvFileLogger.log(collectedData)
-            checkIp()
         }
     }
 
