@@ -59,7 +59,7 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
                                 .intent
                                 .setAction(Intent.ACTION_SEND)
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                .putExtra(Intent.EXTRA_EMAIL, "lccao@cin.ufpe.br")
+                                .putExtra(Intent.EXTRA_EMAIL, arrayOf("lccao@cin.ufpe.br"))
                                 .putExtra(Intent.EXTRA_SUBJECT, "Android Emulator Logs")
                             startActivity(
                                 Intent.createChooser(
