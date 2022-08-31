@@ -299,12 +299,18 @@ object DataCollector {
             }
             val netData = stringBuilder.toString()
 
-            var detectedArray: Array<String> = emptyArray()
+            var netDataArray: Array<String> = emptyArray()
+            val netDataList: MutableList<String> = mutableListOf()
+            var detectedList: List<String> = emptyList()
+
             if (!TextUtils.isEmpty(netData)) {
-                detectedArray = netData.split("\n").toTypedArray()
-                detectedArray.filter { (it.contains("wlan0") || it.contains("tunl0") || it.contains("eth0")) && it.contains(IP) }
+                netDataArray = netData.split("\n").toTypedArray()
+                val pattern = "\\s+".toRegex()
+                for (s in netDataArray)
+                    netDataList.add(s.replace(pattern, " "))
+                detectedList = netDataList.filter { (it.contains("wlan0") || it.contains("tunl0") || it.contains("eth0")) && it.contains(IP) }
             }
-            return CollectedDataModel("Check IP", mapOf("Net Data" to netData, "Detected Array" to detectedArray.toString()), detectedArray.isNotEmpty())
+            return CollectedDataModel("Check IP", mapOf("Net Data" to netDataList.toString(), "Detected Array" to detectedList.toString()), detectedList.isNotEmpty())
         } else {
             return CollectedDataModel("Check IP", mapOf("Missing permissions" to INTERNET), false)
         }
