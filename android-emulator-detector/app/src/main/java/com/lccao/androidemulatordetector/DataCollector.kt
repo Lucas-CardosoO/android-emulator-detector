@@ -3,7 +3,10 @@ package com.lccao.androidemulatordetector
 import android.Manifest.permission.INTERNET
 import android.Manifest.permission.READ_PHONE_STATE
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
+import android.content.Context.ACTIVITY_SERVICE
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.TelephonyManager
@@ -101,7 +104,10 @@ object DataCollector {
     private const val MIN_PROPERTIES_THRESHOLD = 5
 
     private val dataCollectorsList: List<() -> CollectedDataModel> =
-        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles, this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony, this::checkIp)
+        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles,
+            this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony,
+            this::checkIp, this::checkPackageName, this::checkAvailableActivities,
+            this::checkRunningServices)
     val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
 
@@ -216,14 +222,14 @@ object DataCollector {
         val collectedData = emptyMap<String, String>().toMutableMap()
         for (property in PROPERTIES) {
             val propertyValue = getProp(App.appContext, property.first)
-            property.second?.let { suspectValue ->
+            if (property.second != null) {
                 propertyValue?.let {
-                    if (it.contains(suspectValue)) {
+                    if (it.contains(property.second!!)) {
                         foundProps++
                     }
                     collectedData[property.first] = propertyValue
                 }
-            } ?: run {
+            } else {
                 propertyValue?.let {
                     foundProps++
                     collectedData[property.first] = propertyValue
@@ -314,6 +320,78 @@ object DataCollector {
         } else {
             return CollectedDataModel("Check IP", mapOf("Missing permissions" to INTERNET), false)
         }
+    }
+
+    private fun checkAvailableActivities(): CollectedDataModel {
+        val context = App.appContext
+        val packageManager = context.packageManager
+        val intent = Intent(Intent.ACTION_MAIN, null)
+        intent.addCategory(Intent.CATEGORY_LAUNCHER)
+        val availableActivities = packageManager.queryIntentActivities(intent, 0)
+        val availableActivitiesName: MutableList<String> = mutableListOf()
+        val suspectAvailableActivitiesName: MutableList<String> = mutableListOf()
+        for (resolveInfo in availableActivities) {
+            availableActivitiesName.add(resolveInfo.activityInfo.packageName)
+            if (resolveInfo.activityInfo.packageName.startsWith("com.bluestacks.")) {
+                suspectAvailableActivitiesName.add(resolveInfo.activityInfo.packageName)
+            }
+        }
+
+        return CollectedDataModel("Suspect Available Activities",
+            mapOf(
+                "Suspect Activities" to suspectAvailableActivitiesName.toString()
+            ),
+            suspectAvailableActivitiesName.isNotEmpty()
+        )
+    }
+
+    private fun checkPackageName(): CollectedDataModel {
+        val context = App.appContext
+        val packageManager = context.packageManager
+        val packages = packageManager
+            .getInstalledApplications(PackageManager.GET_META_DATA)
+        val suspectPackagesFound: MutableList<String> = mutableListOf()
+        for (packageInfo in packages) {
+            val packageName = packageInfo.packageName
+            if (packageName.startsWith("com.vphone.") ||
+                packageName.startsWith("com.bignox.") ||
+                packageName.startsWith("com.nox.mopen.app") ||
+                packageName.startsWith("me.haima.") ||
+                packageName.startsWith("com.bluestacks.") ||
+                (packageName.startsWith("cn.itools.")
+                        && Build.PRODUCT.startsWith("iToolsAVM")) ||
+                packageName.startsWith("com.kop.") ||
+                packageName.startsWith("com.kaopu.") ||
+                packageName.startsWith("com.microvirt.") ||
+                (packageName == "com.google.android.launcher.layouts.genymotion")) {
+                suspectPackagesFound.add(packageName)
+            }
+        }
+
+        return CollectedDataModel(
+            collectionDescription = "Check Installed Packages",
+            collectedData = mapOf("Suspect Packages" to suspectPackagesFound.toString()),
+            emulatorDetected = suspectPackagesFound.isNotEmpty()
+        )
+    }
+
+    private fun checkRunningServices(): CollectedDataModel {
+        val context = App.appContext
+        val manager = context.getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        val serviceInfos = manager.getRunningServices(30)
+        val suspectRunningServices: MutableList<String> = mutableListOf()
+        for (serviceInfo in serviceInfos) {
+            val serviceName = serviceInfo.service.className
+            if (serviceName.startsWith("com.bluestacks.")) {
+                suspectRunningServices.add(serviceName)
+            }
+        }
+        
+        return CollectedDataModel(
+            collectionDescription = "Check Running Services",
+            collectedData = mapOf("Suspect Running Services" to suspectRunningServices.toString()),
+            emulatorDetected = suspectRunningServices.isNotEmpty()
+        )
     }
 }
 
