@@ -9,6 +9,7 @@ import android.content.Context.ACTIVITY_SERVICE
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Environment
 import android.telephony.TelephonyManager
 import android.text.TextUtils
 import androidx.core.content.ContextCompat
@@ -104,14 +105,14 @@ object DataCollector {
     private const val MIN_PROPERTIES_THRESHOLD = 5
 
     private val dataCollectorsList: List<() -> CollectedDataModel> =
-        listOf(this::isEmulator, this::buildCharacteristics, this::emulatorFiles,
+        listOf(this::isEmulator, this::basicBuildCharacteristics, this::emulatorFiles,
             this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony,
             this::checkIp, this::checkPackageName, this::checkAvailableActivities,
-            this::checkRunningServices)
-    val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
+            this::checkRunningServices, this::differentBuildCharacteristics, this::checkExternalFile)
+    private val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
 
-    suspend fun fetchCollection() = coroutineScope {
+    suspend fun fetchCollection(uiCollectedDataList: List<CollectedDataModel>) = coroutineScope {
         dataCollectorsList.forEach {
             val begin = System.currentTimeMillis()
             val collectedData = it.invoke()
@@ -119,6 +120,9 @@ object DataCollector {
             collectedData.collectionDurationTimestamp = end - begin
             collectedDataList.get().add(collectedData)
             TsvFileLogger.log(collectedData)
+        }
+        uiCollectedDataList.forEach {
+            TsvFileLogger.log(it)
         }
     }
 
@@ -135,8 +139,16 @@ object DataCollector {
         )
     }
 
+    private fun basicBuildCharacteristics(): CollectedDataModel {
+        return buildCharacteristics("Basic", this::checkBasic)
+    }
+
+    private fun differentBuildCharacteristics(): CollectedDataModel {
+        return buildCharacteristics("Different", this::differentEmulatorFromBuild)
+    }
+
     @SuppressLint("HardwareIds")
-    private fun buildCharacteristics(): CollectedDataModel {
+    private fun buildCharacteristics(name: String, evaluatorFunction: () -> Boolean): CollectedDataModel {
         val collectedData = mapOf(
             "model" to Build.MODEL,
             "fingerprint" to Build.FINGERPRINT,
@@ -150,7 +162,7 @@ object DataCollector {
             "device" to Build.DEVICE,
         )
 
-        return CollectedDataModel("Build data", collectedData, checkBasic())
+        return CollectedDataModel("Build data (${name})", collectedData, evaluatorFunction.invoke())
     }
 
     private fun checkBasic(): Boolean {
@@ -357,12 +369,13 @@ object DataCollector {
                 packageName.startsWith("com.bignox.") ||
                 packageName.startsWith("com.nox.mopen.app") ||
                 packageName.startsWith("me.haima.") ||
-                packageName.startsWith("com.bluestacks.") ||
+                packageName.startsWith("com.bluestacks") ||
                 (packageName.startsWith("cn.itools.")
                         && Build.PRODUCT.startsWith("iToolsAVM")) ||
                 packageName.startsWith("com.kop.") ||
                 packageName.startsWith("com.kaopu.") ||
                 packageName.startsWith("com.microvirt.") ||
+                packageName.startsWith("com.bignox.app") ||
                 (packageName == "com.google.android.launcher.layouts.genymotion")) {
                 suspectPackagesFound.add(packageName)
             }
@@ -386,12 +399,103 @@ object DataCollector {
                 suspectRunningServices.add(serviceName)
             }
         }
-        
+
         return CollectedDataModel(
             collectionDescription = "Check Running Services",
             collectedData = mapOf("Suspect Running Services" to suspectRunningServices.toString()),
             emulatorDetected = suspectRunningServices.isNotEmpty()
         )
+    }
+
+    private fun differentEmulatorFromBuild(): Boolean {
+        var newRating = 0
+        if (newRating < 0) {
+            if (Build.PRODUCT.contains("sdk") ||
+                Build.PRODUCT.contains("Andy") ||
+                Build.PRODUCT.contains("ttVM_Hdragon") ||
+                Build.PRODUCT.contains("google_sdk") ||
+                Build.PRODUCT.contains("Droid4X") ||
+                Build.PRODUCT.contains("nox") ||
+                Build.PRODUCT.contains("sdk_x86") ||
+                Build.PRODUCT.contains("sdk_google") ||
+                Build.PRODUCT.contains("vbox86p")
+            ) {
+                newRating++
+            }
+            if (Build.MANUFACTURER == "unknown" || Build.MANUFACTURER == "Genymotion" ||
+                Build.MANUFACTURER.contains("Andy") ||
+                Build.MANUFACTURER.contains("MIT") ||
+                Build.MANUFACTURER.contains("nox") ||
+                Build.MANUFACTURER.contains("TiantianVM")
+            ) {
+                newRating++
+            }
+            if (Build.BRAND == "generic" || Build.BRAND == "generic_x86" || Build.BRAND == "TTVM" ||
+                Build.BRAND.contains("Andy")
+            ) {
+                newRating++
+            }
+            if (Build.DEVICE.contains("generic") ||
+                Build.DEVICE.contains("generic_x86") ||
+                Build.DEVICE.contains("Andy") ||
+                Build.DEVICE.contains("ttVM_Hdragon") ||
+                Build.DEVICE.contains("Droid4X") ||
+                Build.DEVICE.contains("nox") ||
+                Build.DEVICE.contains("generic_x86_64") ||
+                Build.DEVICE.contains("vbox86p")
+            ) {
+                newRating++
+            }
+            if (Build.MODEL == "sdk" || Build.MODEL == "google_sdk" ||
+                Build.MODEL.contains("Droid4X") ||
+                Build.MODEL.contains("TiantianVM") ||
+                Build.MODEL.contains("Andy") || Build.MODEL == "Android SDK built for x86_64" || Build.MODEL == "Android SDK built for x86"
+            ) {
+                newRating++
+            }
+            if (Build.HARDWARE == "goldfish" || Build.HARDWARE == "vbox86" ||
+                Build.HARDWARE.contains("nox") ||
+                Build.HARDWARE.contains("ttVM_x86")
+            ) {
+                newRating++
+            }
+            if (Build.FINGERPRINT.contains("generic/sdk/generic") ||
+                Build.FINGERPRINT.contains("generic_x86/sdk_x86/generic_x86") ||
+                Build.FINGERPRINT.contains("Andy") ||
+                Build.FINGERPRINT.contains("ttVM_Hdragon") ||
+                Build.FINGERPRINT.contains("generic_x86_64") ||
+                Build.FINGERPRINT.contains("generic/google_sdk/generic") ||
+                Build.FINGERPRINT.contains("vbox86p") ||
+                Build.FINGERPRINT.contains("generic/vbox86p/vbox86p")
+            ) {
+                newRating++
+            }
+        }
+        return newRating > 3
+    }
+
+    private fun checkExternalFile(): CollectedDataModel {
+        try {
+            val sharedFolder = File(
+                Environment
+                    .getExternalStorageDirectory().toString()
+                        + File.separatorChar
+                        + "windows"
+                        + File.separatorChar
+                        + "BstSharedFolder"
+            )
+            return CollectedDataModel(
+                collectionDescription = "External File",
+                collectedData = mapOf("Name" to sharedFolder.path),
+                emulatorDetected = sharedFolder.exists()
+            )
+        } catch (e: Exception) {
+            return CollectedDataModel(
+                collectionDescription = "External File",
+                collectedData = mapOf("Error" to e.toString()),
+                emulatorDetected = false
+            )
+        }
     }
 }
 

@@ -2,6 +2,7 @@ package com.lccao.androidemulatordetector
 
 import android.content.Intent
 import android.net.Uri
+import android.opengl.GLES20
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
@@ -18,6 +19,7 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
     override val coroutineContext = IO
     lateinit var button: Button
     lateinit var loadingIndicator: CircularProgressIndicator
+    private val dataCollectorsList: List<() -> CollectedDataModel> = listOf(this::checkOpenGL)
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,8 +30,10 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
         TsvFileLogger.setFolderPathFromContext(applicationContext)
         TsvFileLogger.deleteLogFiles()
 
+        val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
+
         GlobalScope.launch() {
-            DataCollector.fetchCollection()
+            DataCollector.fetchCollection(uiCollectedDataList)
             runOnUiThread {
                 button.visibility = View.VISIBLE
                 loadingIndicator.visibility = View.GONE
@@ -39,6 +43,36 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
 
     fun share(view: View) {
         this.shareLog()
+    }
+
+    private fun getUIDependentCollection(): List<CollectedDataModel> {
+        val collectedDataList = mutableListOf<CollectedDataModel>()
+        dataCollectorsList.forEach {
+            val begin = System.currentTimeMillis()
+            val collectedData = it.invoke()
+            val end = System.currentTimeMillis()
+            collectedData.collectionDurationTimestamp = end - begin
+            collectedDataList.add(collectedData)
+        }
+        return collectedDataList
+    }
+
+    private fun checkOpenGL(): CollectedDataModel {
+        return try {
+            val opengl: String? = GLES20.glGetString(GLES20.GL_RENDERER)
+            CollectedDataModel(
+                collectionDescription = "Open GL",
+                collectedData = mapOf("openGLRender" to (opengl ?: "null")),
+                emulatorDetected = opengl?.contains("Bluestacks") == true ||
+                        opengl?.contains("Translator") == true
+            )
+        } catch (e: Exception) {
+            CollectedDataModel(
+                collectionDescription = "Open GL",
+                collectedData = mapOf("Error" to e.toString()),
+                emulatorDetected = false
+            )
+        }
     }
 
     private fun shareLog() {
@@ -99,5 +133,4 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
             }
         )
     }
-
 }
