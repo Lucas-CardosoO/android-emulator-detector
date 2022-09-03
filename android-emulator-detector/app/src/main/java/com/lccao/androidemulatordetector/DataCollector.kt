@@ -108,7 +108,9 @@ object DataCollector {
         listOf(this::isEmulator, this::basicBuildCharacteristics, this::emulatorFiles,
             this::checkQEmuDrivers, this::checkQEmuProps, this::checkTelephony,
             this::checkIp, this::checkPackageName, this::checkAvailableActivities,
-            this::checkRunningServices, this::differentBuildCharacteristics, this::checkExternalFile)
+            this::checkRunningServices, this::differentBuildCharacteristics, this::checkExternalFile,
+            this::paperBuildCharacteristics
+        )
     private val collectedDataList: AtomicReference<MutableList<CollectedDataModel>> =
         AtomicReference(mutableListOf())
 
@@ -147,6 +149,10 @@ object DataCollector {
         return buildCharacteristics("Different", this::differentEmulatorFromBuild)
     }
 
+    private fun paperBuildCharacteristics(): CollectedDataModel {
+        return buildCharacteristics("Paper", this::checkPaper)
+    }
+
     @SuppressLint("HardwareIds")
     private fun buildCharacteristics(name: String, evaluatorFunction: () -> Boolean): CollectedDataModel {
         val collectedData = mapOf(
@@ -160,6 +166,14 @@ object DataCollector {
             "serial" to (Build.SERIAL),
             "brand" to Build.BRAND,
             "device" to Build.DEVICE,
+            "abi" to Build.CPU_ABI,
+            "abi2" to Build.CPU_ABI2,
+            "supportedAbis" to Build.SUPPORTED_ABIS.contentDeepToString(),
+            "host" to Build.HOST,
+            "id" to Build.ID,
+            "radio" to Build.RADIO,
+            "tags" to Build.TAGS,
+            "user" to Build.USER,
         )
 
         return CollectedDataModel("Build data (${name})", collectedData, evaluatorFunction.invoke())
@@ -184,6 +198,14 @@ object DataCollector {
         if (result) return true
         result = result or ("google_sdk" == Build.PRODUCT)
         return result
+    }
+
+    private fun checkPaper(): Boolean {
+        return Build.BOARD == "unknown" || Build.BRAND == "generic" || Build.DEVICE == "generic" ||
+                Build.FINGERPRINT.startsWith("generic") || Build.HARDWARE == "goldfish" ||
+                Build.ID == "FRF91" || Build.MANUFACTURER == "unknown" || Build.MODEL == "sdk" ||
+                Build.PRODUCT == "sdk" || Build.RADIO == "unknown" || Build.SERIAL == "null" ||
+                Build.TAGS == "test-keys" || Build.USER == "android-build"
     }
 
     private fun emulatorFiles(): CollectedDataModel {
@@ -274,12 +296,32 @@ object DataCollector {
                 val deviceId = telephonyManager.deviceId // May not have permission, check
                 val imsi = telephonyManager.subscriberId
                 val operatorName = telephonyManager.networkOperatorName
+                val networkCountryIso = telephonyManager.networkCountryIso
+                val networkType = telephonyManager.networkType
+                val networkOperator = telephonyManager.networkOperator
+                val phoneType = telephonyManager.phoneType
+                val simCountryIso = telephonyManager.simCountryIso
+                val simSerialNumber = telephonyManager.simSerialNumber
+                val subscriberId = telephonyManager.subscriberId
+                val voiceMailNumber = telephonyManager.voiceMailNumber
 
                 CollectedDataModel(
                     "Check Telephony",
-                    mapOf("Phone Number" to phoneNumber, "Device ID" to deviceId, "IMSI" to imsi, "Network Operator Name" to operatorName),
+                    mapOf("Phone Number" to phoneNumber,
+                        "Device ID" to deviceId,
+                        "IMSI" to imsi,
+                        "Network Operator Name" to operatorName,
+                        "Network Country ISO" to networkCountryIso,
+                        "Network Type" to networkType.toString(),
+                        "Network Operator" to networkOperator,
+                        "Phone Type" to phoneType.toString(),
+                        "SIM Country ISO" to simCountryIso,
+                        "SIM Serial Number" to simSerialNumber,
+                        "Subscriber ID" to subscriberId,
+                        "Voice Mail Number" to voiceMailNumber),
                     PHONE_NUMBERS.contains(phoneNumber) ||
-                            DEVICE_IDS.contains(deviceId) || IMSI_IDS.contains(imsi) || operatorName.equals("android", ignoreCase = true)
+                            DEVICE_IDS.contains(deviceId) || IMSI_IDS.contains(imsi) || operatorName.equals("android", ignoreCase = true) || // Those were implemented in the open source project
+                            subscriberId == "310260000000000" || voiceMailNumber == "15552175049" // These are guaranteed to be emulator in a paper
                 )
             }
             !isSupportTelephony() -> {
