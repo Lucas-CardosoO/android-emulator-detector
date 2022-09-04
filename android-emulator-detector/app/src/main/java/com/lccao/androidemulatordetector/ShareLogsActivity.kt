@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.Toast
 import androidx.core.app.ShareCompat.IntentBuilder
 import androidx.core.content.FileProvider
@@ -20,6 +21,7 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
     lateinit var button: Button
     lateinit var loadingIndicator: CircularProgressIndicator
     private val dataCollectorsList: List<() -> CollectedDataModel> = listOf(this::checkOpenGL)
+    private var isRunningOnEmulator = false
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,6 +45,12 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
 
     fun share(view: View) {
         this.shareLog()
+    }
+
+    fun onCheckboxClicked(view: View) {
+        if (view is CheckBox) {
+            isRunningOnEmulator = view.isChecked
+        }
     }
 
     private fun getUIDependentCollection(): List<CollectedDataModel> {
@@ -77,6 +85,7 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
 
     private fun shareLog() {
         TsvFileLogger.archiveLogs(
+            isEmulator = isRunningOnEmulator,
             object : TsvFileLogger.LogArchiveListener {
                 override fun onSuccess(archiveFile: File) {
                     try {

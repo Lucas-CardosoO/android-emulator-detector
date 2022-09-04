@@ -22,6 +22,7 @@ internal object TsvFileLogger {
     private const val MAX_BYTES = 500 * 1024
     private const val LOGS_FOLDER_NAME = "logs"
     private const val LOG_FILE_PREFIX = "log"
+    private const val IS_EMULATOR_FILE = "isEmulator.txt"
     private const val DESCRIPTION_COLUMN_NAME = "descriptions"
     private const val COLLECTED_DATA_COLUMN_NAME = "collected_data"
     private const val EMULATOR_DETECTED = "emulator_detected"
@@ -89,9 +90,10 @@ internal object TsvFileLogger {
         }
     }
 
-    fun archiveLogs(listener: LogArchiveListener?) {
+    fun archiveLogs(isEmulator: Boolean, listener: LogArchiveListener?) {
         handler.post {
             try {
+                logIsEmulator(isEmulator)
                 val files = logFiles
                 var origin: BufferedInputStream
                 val dest = FileOutputStream("$folderPath/$ARCHIVED_LOGS_FILE_NAME")
@@ -122,6 +124,29 @@ internal object TsvFileLogger {
         }
     }
 
+    fun logIsEmulator(isEmulator: Boolean) {
+        var fileWriter: FileWriter? = null
+        val logFolder = File(folderPath)
+        if (!logFolder.exists()) {
+            logFolder.mkdirs()
+        }
+        val file = File(logFolder, IS_EMULATOR_FILE)
+        try {
+            fileWriter = FileWriter(file, false)
+            fileWriter.write(isEmulator.toString())
+            fileWriter.flush()
+            fileWriter.close()
+        } catch (e: IOException) {
+            fileWriter?.let {
+                try {
+                    it.flush()
+                    it.close()
+                } catch (ignored: IOException) {
+                }
+            }
+        }
+    }
+
     fun deleteLogFiles() {
         handler.post {
             val dir = File(folderPath)
@@ -140,7 +165,8 @@ internal object TsvFileLogger {
             files?.let { logFiles ->
                 for (file in logFiles) {
                     file?.let {
-                        if (it.isFile && it.absolutePath.endsWith(TSV_EXTENSION)) {
+                        if (it.isFile && (it.absolutePath.endsWith(TSV_EXTENSION) ||
+                                    it.absolutePath.endsWith(IS_EMULATOR_FILE))) {
                             logFilePaths.add(it.absolutePath)
                         }
                     }
