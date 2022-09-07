@@ -156,6 +156,7 @@ object DataCollector {
     @SuppressLint("HardwareIds")
     private fun buildCharacteristics(name: String, evaluatorFunction: () -> Boolean): CollectedDataModel {
         val collectedData = mapOf(
+            "osVersion" to Build.VERSION.SDK_INT.toString(),
             "model" to Build.MODEL,
             "fingerprint" to Build.FINGERPRINT,
             "hardware" to Build.HARDWARE,
