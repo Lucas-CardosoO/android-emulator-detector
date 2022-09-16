@@ -287,24 +287,10 @@ object DataCollector {
         return null
     }
 
-    @SuppressLint("HardwareIds")
+    @SuppressLint("HardwareIds", "MissingPermission")
     private fun checkTelephony(): CollectedDataModel {
         return when {
-                (
-                    (
-//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//                            (ContextCompat.checkSelfPermission(
-//                                App.appContext,
-//                                READ_PHONE_NUMBERS
-//                            )) == PackageManager.PERMISSION_GRANTED
-//                        } else {
-                            (ContextCompat.checkSelfPermission(
-                                App.appContext,
-                                READ_PHONE_STATE
-                            )) == PackageManager.PERMISSION_GRANTED
-//                }
-                            )
-                    && isSupportTelephony()) -> {
+                (isSupportTelephony()) -> {
                 val telephonyManager = App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
                 var phoneNumber:String? = null
                 try {
@@ -312,7 +298,7 @@ object DataCollector {
                 } catch (t:Throwable) {}
                 var deviceId: String? = null
                 try {
-                    deviceId = telephonyManager.deviceId // May not have permission, check
+                    deviceId = telephonyManager.deviceId
                 } catch (t:Throwable) {}
                 val operatorName = telephonyManager.networkOperatorName
                 val networkCountryIso = telephonyManager.networkCountryIso

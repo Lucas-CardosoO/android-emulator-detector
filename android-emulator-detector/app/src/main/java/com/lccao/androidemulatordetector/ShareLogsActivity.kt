@@ -29,7 +29,6 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
     private val dataCollectorsList: List<() -> CollectedDataModel> = listOf(this::checkOpenGL)
     private var isRunningOnEmulator = false
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_share_logs)
@@ -37,26 +36,17 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
         loadingIndicator = findViewById(R.id.loading_indicator)
         TsvFileLogger.setFolderPathFromContext(applicationContext)
         TsvFileLogger.deleteLogFiles()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.READ_PHONE_NUMBERS, Manifest.permission.READ_SMS
-                ), 1)
-            } else {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_SMS), 1)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
+            ActivityCompat.requestPermissions(this, arrayOf(
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_PHONE_NUMBERS,
+                Manifest.permission.READ_SMS
+            ), 1)
+        } else {
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_SMS),
+                1)
         }
-
-
-//        val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
-//
-//        GlobalScope.launch() {
-//            DataCollector.fetchCollection(uiCollectedDataList)
-//            runOnUiThread {
-//                button.visibility = View.VISIBLE
-//                loadingIndicator.visibility = View.GONE
-//            }
-//        }
     }
 
     fun share(view: View) {
@@ -99,6 +89,7 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String?>,
@@ -106,13 +97,15 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
     ) {
         when (requestCode) {
             1 -> {
-                val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
+                runOnUiThread {
+                    val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
 
-                GlobalScope.launch() {
-                    DataCollector.fetchCollection(uiCollectedDataList)
-                    runOnUiThread {
-                        button.visibility = View.VISIBLE
-                        loadingIndicator.visibility = View.GONE
+                    GlobalScope.launch() {
+                        DataCollector.fetchCollection(uiCollectedDataList)
+                        runOnUiThread {
+                            button.visibility = View.VISIBLE
+                            loadingIndicator.visibility = View.GONE
+                        }
                     }
                 }
                 return
