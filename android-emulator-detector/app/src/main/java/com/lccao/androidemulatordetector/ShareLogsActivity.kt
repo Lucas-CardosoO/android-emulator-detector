@@ -1,20 +1,26 @@
 package com.lccao.androidemulatordetector
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.opengl.GLES20
-import androidx.appcompat.app.AppCompatActivity
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.app.ShareCompat.IntentBuilder
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import java.io.File
+
 
 class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
     override val coroutineContext = IO
@@ -31,16 +37,26 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
         loadingIndicator = findViewById(R.id.loading_indicator)
         TsvFileLogger.setFolderPathFromContext(applicationContext)
         TsvFileLogger.deleteLogFiles()
-
-        val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
-
-        GlobalScope.launch() {
-            DataCollector.fetchCollection(uiCollectedDataList)
-            runOnUiThread {
-                button.visibility = View.VISIBLE
-                loadingIndicator.visibility = View.GONE
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.READ_PHONE_NUMBERS, Manifest.permission.READ_SMS
+                ), 1)
+            } else {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_SMS), 1)
             }
         }
+
+
+//        val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
+//
+//        GlobalScope.launch() {
+//            DataCollector.fetchCollection(uiCollectedDataList)
+//            runOnUiThread {
+//                button.visibility = View.VISIBLE
+//                loadingIndicator.visibility = View.GONE
+//            }
+//        }
     }
 
     fun share(view: View) {
@@ -80,6 +96,27 @@ class ShareLogsActivity : AppCompatActivity(), CoroutineScope {
                 collectedData = mapOf("Error" to e.toString()),
                 emulatorDetected = false
             )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String?>,
+        grantResults: IntArray
+    ) {
+        when (requestCode) {
+            1 -> {
+                val uiCollectedDataList: List<CollectedDataModel> = getUIDependentCollection()
+
+                GlobalScope.launch() {
+                    DataCollector.fetchCollection(uiCollectedDataList)
+                    runOnUiThread {
+                        button.visibility = View.VISIBLE
+                        loadingIndicator.visibility = View.GONE
+                    }
+                }
+                return
+            }
         }
     }
 

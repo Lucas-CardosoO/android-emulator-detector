@@ -1,7 +1,6 @@
 package com.lccao.androidemulatordetector
 
-import android.Manifest.permission.INTERNET
-import android.Manifest.permission.READ_PHONE_STATE
+import android.Manifest.permission.*
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.Context
@@ -291,42 +290,72 @@ object DataCollector {
     @SuppressLint("HardwareIds")
     private fun checkTelephony(): CollectedDataModel {
         return when {
-            (ContextCompat.checkSelfPermission(App.appContext, READ_PHONE_STATE)) == PackageManager.PERMISSION_GRANTED && isSupportTelephony() -> {
+                (
+                    (
+//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//                            (ContextCompat.checkSelfPermission(
+//                                App.appContext,
+//                                READ_PHONE_NUMBERS
+//                            )) == PackageManager.PERMISSION_GRANTED
+//                        } else {
+                            (ContextCompat.checkSelfPermission(
+                                App.appContext,
+                                READ_PHONE_STATE
+                            )) == PackageManager.PERMISSION_GRANTED
+//                }
+                            )
+                    && isSupportTelephony()) -> {
                 val telephonyManager = App.appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-                val phoneNumber = telephonyManager.line1Number
-                val deviceId = telephonyManager.deviceId // May not have permission, check
-                val imsi = telephonyManager.subscriberId
+                var phoneNumber:String? = null
+                try {
+                    phoneNumber = telephonyManager.line1Number
+                } catch (t:Throwable) {}
+                var deviceId: String? = null
+                try {
+                    deviceId = telephonyManager.deviceId // May not have permission, check
+                } catch (t:Throwable) {}
                 val operatorName = telephonyManager.networkOperatorName
                 val networkCountryIso = telephonyManager.networkCountryIso
-                val networkType = telephonyManager.networkType
+                var networkType: Int? = null
+                try {
+                    networkType = telephonyManager.networkType
+                } catch (t:Throwable) {}
                 val networkOperator = telephonyManager.networkOperator
                 val phoneType = telephonyManager.phoneType
                 val simCountryIso = telephonyManager.simCountryIso
-                val simSerialNumber = telephonyManager.simSerialNumber
-                val subscriberId = telephonyManager.subscriberId
-                val voiceMailNumber = telephonyManager.voiceMailNumber
+                var simSerialNumber: String? = null
+                try {
+                    simSerialNumber = telephonyManager.simSerialNumber
+                } catch (t: Throwable) {}
+                var subscriberId: String? = null
+                try {
+                    subscriberId = telephonyManager.subscriberId
+                } catch (t:Throwable) {}
+                var voiceMailNumber:String? = null
+                try {
+                    voiceMailNumber = telephonyManager.voiceMailNumber
+                } catch (t:Throwable) {}
 
                 CollectedDataModel(
                     "Check Telephony",
-                    mapOf("Phone Number" to phoneNumber,
-                        "Device ID" to deviceId,
-                        "IMSI" to imsi,
+                    mapOf("Phone Number" to (phoneNumber ?: "null"),
+                        "Device ID" to (deviceId ?: "null"),
                         "Network Operator Name" to operatorName,
                         "Network Country ISO" to networkCountryIso,
-                        "Network Type" to networkType.toString(),
+                        "Network Type" to (networkType?.toString() ?: "null"),
                         "Network Operator" to networkOperator,
                         "Phone Type" to phoneType.toString(),
                         "SIM Country ISO" to simCountryIso,
-                        "SIM Serial Number" to simSerialNumber,
-                        "Subscriber ID" to subscriberId,
-                        "Voice Mail Number" to voiceMailNumber),
+                        "SIM Serial Number" to (simSerialNumber ?: "null"),
+                        "Subscriber ID" to (subscriberId ?: "null"),
+                        "Voice Mail Number" to (voiceMailNumber ?: "null")),
                     PHONE_NUMBERS.contains(phoneNumber) ||
-                            DEVICE_IDS.contains(deviceId) || IMSI_IDS.contains(imsi) || operatorName.equals("android", ignoreCase = true) || // Those were implemented in the open source project
+                            DEVICE_IDS.contains(deviceId) || IMSI_IDS.contains(subscriberId) || operatorName.equals("android", ignoreCase = true) || // Those were implemented in the open source project
                             subscriberId == "310260000000000" || voiceMailNumber == "15552175049" // These are guaranteed to be emulator in a paper
                 )
             }
             !isSupportTelephony() -> {
-                CollectedDataModel("Check Telephony", mapOf("Collection Failed" to "No Support for Telephony Permission"), false)
+                CollectedDataModel("Check Telephony", mapOf("Collection Failed" to "No Support for Telephony Feature"), false)
             }
             else -> {
                 CollectedDataModel("Check Telephony", mapOf("Collection Failed" to "No READ_PHONE_STATE Permission"), false)
